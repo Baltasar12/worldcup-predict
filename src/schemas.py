@@ -30,3 +30,51 @@ class ChampionProb(BaseModel):
 class SimulationResponse(BaseModel):
     simulations_run: int
     champions: List[ChampionProb]
+
+
+# --- World Cup schemas ---
+
+class WorldCupGroupsResponse(BaseModel):
+    tournament: str
+    groups: Dict[str, List[str]]
+
+class GroupStageMatchResult(BaseModel):
+    team_a: str
+    team_b: str
+    score_a: int
+    score_b: int
+
+class TeamStandingResponse(BaseModel):
+    team: str
+    points: int
+    wins: int
+    draws: int
+    losses: int
+    goals_for: int
+    goals_against: int
+    goal_difference: int
+    elo: float
+
+class GroupStandingsResponse(BaseModel):
+    group: str
+    standings: List[TeamStandingResponse]
+    matches: List[GroupStageMatchResult]
+
+class GroupStageResponse(BaseModel):
+    groups: List[GroupStandingsResponse]
+
+class BracketMatchResponse(BaseModel):
+    match_id: int
+    round: str
+    team_a: str
+    team_b: str
+    team_a_origin: str
+    team_b_origin: str
+
+class BracketResponse(BaseModel):
+    round_of_32: List[BracketMatchResponse]
+    qualified_teams: int
+
+class WorldCupSimulationResponse(BaseModel):
+    groups: List[GroupStandingsResponse]
+    bracket: BracketResponse

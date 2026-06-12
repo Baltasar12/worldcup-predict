@@ -1,23 +1,83 @@
 from fastapi import FastAPI, HTTPException, Depends
 from fastapi.middleware.cors import CORSMiddleware
 from sqlalchemy.orm import Session
-import math
 import random
 from collections import defaultdict
+from contextlib import asynccontextmanager
 from typing import List
 
 from src.database import SessionLocal
 from src.models import Team, TeamRating
 from src.calculate_elo import expected_score
+from src.prediction import get_calibrated_draw_prob, get_match_probabilities
 from src.schemas import (
     RankingResponse, TeamResponse, PredictionResponse, 
-    SimulationRequest, SimulationResponse, ChampionProb
+    SimulationRequest, SimulationResponse, ChampionProb,
+    WorldCupGroupsResponse, GroupStageResponse, GroupStandingsResponse,
+    GroupStageMatchResult, TeamStandingResponse,
+    BracketResponse, BracketMatchResponse,
+    WorldCupSimulationResponse,
 )
+from src.world_cup.simulator import load_groups, run_group_stage, run_single_simulation
+from src.world_cup.bracket import generate_bracket
+
+
+def validate_world_cup_dataset():
+    """
+    Validate that every team in world_cup_2026.json can be resolved
+    to an Elo rating in the database. Fails fast with a clear error
+    if any teams are unresolved.
+    """
+    data = load_groups()
+    all_team_names = [
+        team for teams in data["groups"].values() for team in teams
+    ]
+
+    db = SessionLocal()
+    try:
+        db_teams = {t.name for t in db.query(Team).all()}
+        rated_team_ids = {r.team_id for r in db.query(TeamRating).all()}
+        rated_teams = {
+            t.name for t in db.query(Team).filter(Team.id.in_(rated_team_ids)).all()
+        }
+
+        missing_from_db = [t for t in all_team_names if t not in db_teams]
+        missing_elo = [t for t in all_team_names if t in db_teams and t not in rated_teams]
+
+        errors = []
+        if missing_from_db:
+            errors.append(
+                f"Teams not found in database: {missing_from_db}"
+            )
+        if missing_elo:
+            errors.append(
+                f"Teams found in database but missing Elo ratings: {missing_elo}"
+            )
+
+        if errors:
+            msg = (
+                "World Cup dataset validation failed.\n"
+                + "\n".join(errors)
+                + "\nFix data/world_cup_2026.json to use exact team names from the database."
+            )
+            raise RuntimeError(msg)
+
+    finally:
+        db.close()
+
+
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    """Startup/shutdown lifecycle handler."""
+    validate_world_cup_dataset()
+    yield
+
 
 app = FastAPI(
     title="World Cup Prediction Engine",
     description="Probabilistic prediction engine based on historical data and Elo ratings.",
-    version="1.0"
+    version="1.0",
+    lifespan=lifespan,
 )
 
 # Add CORS Middleware
@@ -37,14 +97,12 @@ def get_db():
     finally:
         db.close()
 
-def get_calibrated_draw_prob(rating_a: float, rating_b: float) -> float:
-    diff = abs(rating_a - rating_b)
-    # P(Draw) = 0.2800 * exp(-(diff / 370.0000)^2)
-    return 0.28 * math.exp(- (diff / 370.0)**2)
 
 @app.get("/health")
 def health_check():
     return {"status": "ok", "version": "1.0"}
+
+
 
 @app.get("/rankings", response_model=List[RankingResponse])
 def get_rankings(limit: int = 20, db: Session = Depends(get_db)):
@@ -84,25 +142,7 @@ def predict_match(team_a: str, team_b: str, db: Session = Depends(get_db)):
     elo_a = r_a_obj.rating if r_a_obj else 1500.0
     elo_b = r_b_obj.rating if r_b_obj else 1500.0
     
-    # Calculate Elo Expected Score (which encapsulates Win + 0.5 * Draw)
-    exp_a = expected_score(elo_a, elo_b, 0)
-    exp_b = expected_score(elo_b, elo_a, 0)
-    
-    draw_prob = get_calibrated_draw_prob(elo_a, elo_b)
-    
-    # P(Win) = Expected - 0.5 * P(Draw)
-    win_a = exp_a - 0.5 * draw_prob
-    win_b = exp_b - 0.5 * draw_prob
-    
-    # Ensure no negative probabilities due to heuristic edge cases
-    win_a = max(0.0, win_a)
-    win_b = max(0.0, win_b)
-    
-    # Normalize back to 1.0 just in case
-    total = win_a + win_b + draw_prob
-    win_a /= total
-    win_b /= total
-    draw_prob /= total
+    win_a, draw_prob, win_b = get_match_probabilities(elo_a, elo_b)
     
     favorite = t_a.name if win_a > win_b else t_b.name
     
@@ -175,4 +215,109 @@ def simulate_tournament(request: SimulationRequest, db: Session = Depends(get_db
     return SimulationResponse(
         simulations_run=simulations,
         champions=champ_probs
+    )
+
+
+# --- World Cup endpoints ---
+
+def _build_elo_lookup(db: Session) -> dict[str, float]:
+    """Build a team_name -> elo_rating lookup from the database."""
+    ratings = db.query(TeamRating).all()
+    team_ids = {r.team_id for r in ratings}
+    teams = db.query(Team).filter(Team.id.in_(team_ids)).all()
+    id_to_name = {t.id: t.name for t in teams}
+    return {id_to_name[r.team_id]: r.rating for r in ratings if r.team_id in id_to_name}
+
+
+def _group_result_to_response(gr) -> GroupStandingsResponse:
+    """Convert a GroupResult dataclass to a Pydantic response."""
+    return GroupStandingsResponse(
+        group=gr.group_name,
+        standings=[
+            TeamStandingResponse(
+                team=s.team,
+                points=s.points,
+                wins=s.wins,
+                draws=s.draws,
+                losses=s.losses,
+                goals_for=s.goals_for,
+                goals_against=s.goals_against,
+                goal_difference=s.goal_difference,
+                elo=round(s.elo, 1),
+            )
+            for s in gr.standings
+        ],
+        matches=[
+            GroupStageMatchResult(
+                team_a=m.team_a,
+                team_b=m.team_b,
+                score_a=m.score_a,
+                score_b=m.score_b,
+            )
+            for m in gr.matches
+        ],
+    )
+
+
+def _bracket_to_response(bracket) -> BracketResponse:
+    """Convert a Bracket dataclass to a Pydantic response."""
+    return BracketResponse(
+        round_of_32=[
+            BracketMatchResponse(
+                match_id=bm.match_id,
+                round=bm.round_name,
+                team_a=bm.team_a,
+                team_b=bm.team_b,
+                team_a_origin=bm.team_a_origin,
+                team_b_origin=bm.team_b_origin,
+            )
+            for bm in bracket.round_of_32
+        ],
+        qualified_teams=bracket.qualified_teams,
+    )
+
+
+@app.get("/world-cup/groups", response_model=WorldCupGroupsResponse)
+def get_world_cup_groups():
+    """Return the configured World Cup 2026 groups."""
+    data = load_groups()
+    return WorldCupGroupsResponse(
+        tournament=data["tournament"],
+        groups=data["groups"],
+    )
+
+
+@app.post("/world-cup/group-stage", response_model=GroupStageResponse)
+def run_world_cup_group_stage(db: Session = Depends(get_db)):
+    """Run a single group-stage simulation for all groups."""
+    data = load_groups()
+    elo_lookup = _build_elo_lookup(db)
+    group_results = run_group_stage(data["groups"], elo_lookup)
+
+    return GroupStageResponse(
+        groups=[_group_result_to_response(gr) for gr in group_results],
+    )
+
+
+@app.post("/world-cup/bracket", response_model=BracketResponse)
+def generate_world_cup_bracket(db: Session = Depends(get_db)):
+    """Run group stage and generate the knockout bracket."""
+    data = load_groups()
+    elo_lookup = _build_elo_lookup(db)
+    group_results = run_group_stage(data["groups"], elo_lookup)
+    bracket = generate_bracket(group_results)
+
+    return _bracket_to_response(bracket)
+
+
+@app.post("/world-cup/simulate", response_model=WorldCupSimulationResponse)
+def simulate_world_cup(db: Session = Depends(get_db)):
+    """Run the complete Sprint 1 workflow: groups + bracket."""
+    data = load_groups()
+    elo_lookup = _build_elo_lookup(db)
+    result = run_single_simulation(data["groups"], elo_lookup)
+
+    return WorldCupSimulationResponse(
+        groups=[_group_result_to_response(gr) for gr in result["group_results"]],
+        bracket=_bracket_to_response(result["bracket"]),
     )

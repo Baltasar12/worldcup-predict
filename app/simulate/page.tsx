@@ -138,7 +138,7 @@ export default function SimulatePage() {
                         <XAxis type="number" hide />
                         <YAxis dataKey="team" type="category" width={120} tick={{ fill: '#94a3b8' }} />
                         <Tooltip 
-                          formatter={(value: number | string) => [`${(Number(value) * 100).toFixed(1)}%`, 'Probability']}
+                          formatter={(value: string | number | undefined | readonly (string | number)[]) => [`${(Number(value || 0) * 100).toFixed(1)}%`, 'Probability']}
                           contentStyle={{ backgroundColor: '#0f172a', borderColor: '#1e293b', color: '#f8fafc' }}
                         />
                         <Bar dataKey="probability" radius={[0, 4, 4, 0]}>
