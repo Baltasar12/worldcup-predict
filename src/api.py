@@ -22,6 +22,17 @@ from src.world_cup.simulator import load_groups, run_group_stage, run_single_sim
 from src.world_cup.bracket import generate_bracket
 
 
+TEAM_ALIASES = {
+    "USA": "United States",
+    "IR Iran": "Iran",
+    "Korea Republic": "South Korea",
+    "Côte d'Ivoire": "Ivory Coast",
+    "Cote d'Ivoire": "Ivory Coast",
+    "Czechia": "Czech Republic",
+    "Bosnia-Herzegovina": "Bosnia and Herzegovina",
+}
+
+
 def validate_world_cup_dataset():
     """
     Validate that every team in world_cup_2026.json can be resolved
@@ -119,6 +130,7 @@ def get_rankings(limit: int = 20, db: Session = Depends(get_db)):
 
 @app.get("/team/{team_name}", response_model=TeamResponse)
 def get_team(team_name: str, db: Session = Depends(get_db)):
+    team_name = TEAM_ALIASES.get(team_name, team_name)
     team = db.query(Team).filter(Team.name.ilike(team_name)).first()
     if not team:
         raise HTTPException(status_code=404, detail="Team not found")
@@ -130,6 +142,9 @@ def get_team(team_name: str, db: Session = Depends(get_db)):
 
 @app.get("/predict", response_model=PredictionResponse)
 def predict_match(team_a: str, team_b: str, db: Session = Depends(get_db)):
+    team_a = TEAM_ALIASES.get(team_a, team_a)
+    team_b = TEAM_ALIASES.get(team_b, team_b)
+    
     t_a = db.query(Team).filter(Team.name.ilike(team_a)).first()
     t_b = db.query(Team).filter(Team.name.ilike(team_b)).first()
     
@@ -177,12 +192,14 @@ def simulate_knockout(teams_with_ratings: List[tuple]) -> str:
 
 @app.post("/simulate", response_model=SimulationResponse)
 def simulate_tournament(request: SimulationRequest, db: Session = Depends(get_db)):
-    if len(request.teams) < 2:
+    normalized_teams = [TEAM_ALIASES.get(t, t) for t in request.teams]
+    
+    if len(normalized_teams) < 2:
         raise HTTPException(status_code=400, detail="Need at least 2 teams to simulate")
         
-    teams = db.query(Team).filter(Team.name.in_(request.teams)).all()
+    teams = db.query(Team).filter(Team.name.in_(normalized_teams)).all()
     found_names = {t.name for t in teams}
-    missing = set(request.teams) - found_names
+    missing = set(normalized_teams) - found_names
     
     if missing:
         raise HTTPException(status_code=404, detail=f"Teams not found: {', '.join(missing)}")

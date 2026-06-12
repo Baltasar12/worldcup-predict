@@ -10,7 +10,7 @@ import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGri
 
 const WC_2026_PRESET = [
   "Argentina", "France", "Brazil", "England", "Spain", "Portugal", "Netherlands", "Italy", 
-  "Germany", "Croatia", "Uruguay", "Colombia", "Morocco", "Senegal", "Japan", "USA"
+  "Germany", "Croatia", "Uruguay", "Colombia", "Morocco", "Senegal", "Japan", "United States"
 ];
 
 export default function SimulatePage() {

@@ -536,3 +536,37 @@ class TestMonteCarloSimulation:
         for r in data["results"]:
             assert 0.0 <= r["qualified_from_groups"] <= 100.0
             assert 0.0 <= r["champion"] <= 100.0
+
+class TestAliasHandling:
+    """Test team name normalization across endpoints."""
+
+    def test_alias_predict(self):
+        """predict endpoint should treat USA and United States the same."""
+        res_alias = client.get("/predict?team_a=USA&team_b=Argentina")
+        res_norm = client.get("/predict?team_a=United States&team_b=Argentina")
+        
+        assert res_alias.status_code == 200
+        assert res_norm.status_code == 200
+        
+        d_alias = res_alias.json()
+        d_norm = res_norm.json()
+        
+        assert d_alias["win_probability_a"] == d_norm["win_probability_a"]
+        assert d_alias["team_a"] == "United States"
+
+    def test_alias_simulate(self):
+        """simulate endpoint should accept aliases."""
+        res_alias = client.post("/simulate", json={"teams": ["USA", "Argentina"]})
+        res_norm = client.post("/simulate", json={"teams": ["United States", "Argentina"]})
+        
+        assert res_alias.status_code == 200
+        assert res_norm.status_code == 200
+        
+        d_alias = res_alias.json()
+        d_norm = res_norm.json()
+        
+        assert d_alias["simulations_run"] == d_norm["simulations_run"]
+        # The team returned in champion list should be the normalized one
+        teams_in_alias = {c["team"] for c in d_alias["champions"]}
+        assert "United States" in teams_in_alias
+        assert "USA" not in teams_in_alias
