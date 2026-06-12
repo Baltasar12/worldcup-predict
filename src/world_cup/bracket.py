@@ -104,6 +104,9 @@ def generate_bracket(group_results: list[GroupResult]) -> Bracket:
     best_thirds = rank_third_placed_teams(group_results)
 
     # Build the 16 Round of 32 pairings
+    # TODO: The current pairing logic maps 1I vs 1L and 1J vs 1K.
+    # This creates winner-vs-winner first-round matchups.
+    # This needs to be analyzed and redesigned in a future iteration.
     # Format: (team_a_standing, origin_a, team_b_standing, origin_b)
     pairings = [
         (winners["A"], "1A", best_thirds[7][0], f"3rd-{best_thirds[7][1]}"),

@@ -1,5 +1,5 @@
 from pydantic import BaseModel
-from typing import List, Dict
+from typing import List, Dict, Optional
 
 class RankingResponse(BaseModel):
     rank: int
@@ -78,3 +78,20 @@ class BracketResponse(BaseModel):
 class WorldCupSimulationResponse(BaseModel):
     groups: List[GroupStandingsResponse]
     bracket: BracketResponse
+
+class ForecastRequest(BaseModel):
+    simulations: int
+    seed: Optional[int] = None
+
+class TeamForecast(BaseModel):
+    team: str
+    qualified_from_groups: float
+    round_of_16: float
+    quarterfinal: float
+    semifinal: float
+    final: float
+    champion: float
+
+class ForecastResponse(BaseModel):
+    simulations: int
+    results: List[TeamForecast]

@@ -21,7 +21,12 @@ from src.world_cup.groups import (
     compute_standings,
 )
 from src.world_cup.bracket import generate_bracket, rank_third_placed_teams
-from src.world_cup.simulator import load_groups, run_group_stage
+from src.world_cup.simulator import (
+    load_groups, 
+    run_group_stage,
+    simulate_knockout_match,
+    simulate_round
+)
 
 
 client = TestClient(app)
@@ -466,3 +471,68 @@ class TestV1BackwardCompatibility:
             data = response.json()
             assert "simulations_run" in data
             assert "champions" in data
+
+# =====================================================================
+# Monte Carlo / Sprint 2 Tests
+# =====================================================================
+
+class TestMonteCarloSimulation:
+    """Test knockout logic and Monte Carlo engine."""
+
+    def test_simulate_knockout_match_no_draws(self):
+        """Knockout match must return a winner (no draws possible)."""
+        elo_lookup = {"TeamA": 1600.0, "TeamB": 1500.0}
+        for _ in range(50):
+            winner = simulate_knockout_match("TeamA", "TeamB", elo_lookup)
+            assert winner in ["TeamA", "TeamB"]
+
+    def test_simulate_round_returns_half_teams(self):
+        """simulate_round should return exactly half the number of teams."""
+        teams = ["T1", "T2", "T3", "T4", "T5", "T6", "T7", "T8"]
+        elo_lookup = {t: 1500.0 for t in teams}
+        winners = simulate_round(teams, elo_lookup)
+        assert len(winners) == 4
+        for w in winners:
+            assert w in teams
+
+    def test_monte_carlo_endpoint_basic(self):
+        """POST /world-cup/forecast should run and return valid probability schema."""
+        payload = {"simulations": 10}
+        response = client.post("/world-cup/forecast", json=payload)
+        assert response.status_code == 200
+        data = response.json()
+        
+        assert data["simulations"] == 10
+        assert "results" in data
+        assert len(data["results"]) == 48  # All teams should be present
+        
+        # Check sorted by champion
+        champs = [r["champion"] for r in data["results"]]
+        assert champs == sorted(champs, reverse=True)
+
+    def test_monte_carlo_endpoint_seed_reproducibility(self):
+        """Identical seeds should produce identical forecast results."""
+        payload = {"simulations": 10, "seed": 42}
+        
+        resp1 = client.post("/world-cup/forecast", json=payload).json()
+        resp2 = client.post("/world-cup/forecast", json=payload).json()
+        
+        assert resp1 == resp2
+
+    def test_monte_carlo_endpoint_probabilities_sum(self):
+        """
+        Champion probabilities should sum to approximately 100%.
+        Since 100.0 isn't strictly guaranteed due to rounding, we check range.
+        """
+        payload = {"simulations": 10}
+        response = client.post("/world-cup/forecast", json=payload)
+        assert response.status_code == 200
+        data = response.json()
+        
+        total_champ = sum(r["champion"] for r in data["results"])
+        assert 99.0 <= total_champ <= 101.0
+        
+        # Test ranges
+        for r in data["results"]:
+            assert 0.0 <= r["qualified_from_groups"] <= 100.0
+            assert 0.0 <= r["champion"] <= 100.0

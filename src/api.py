@@ -16,9 +16,9 @@ from src.schemas import (
     WorldCupGroupsResponse, GroupStageResponse, GroupStandingsResponse,
     GroupStageMatchResult, TeamStandingResponse,
     BracketResponse, BracketMatchResponse,
-    WorldCupSimulationResponse,
+    WorldCupSimulationResponse, ForecastRequest, ForecastResponse, TeamForecast
 )
-from src.world_cup.simulator import load_groups, run_group_stage, run_single_simulation
+from src.world_cup.simulator import load_groups, run_group_stage, run_single_simulation, run_monte_carlo_simulation
 from src.world_cup.bracket import generate_bracket
 
 
@@ -320,4 +320,35 @@ def simulate_world_cup(db: Session = Depends(get_db)):
     return WorldCupSimulationResponse(
         groups=[_group_result_to_response(gr) for gr in result["group_results"]],
         bracket=_bracket_to_response(result["bracket"]),
+    )
+
+@app.post("/world-cup/forecast", response_model=ForecastResponse)
+def run_world_cup_forecast(request: ForecastRequest, db: Session = Depends(get_db)):
+    """Run a full Monte Carlo simulation to forecast the tournament."""
+    data = load_groups()
+    elo_lookup = _build_elo_lookup(db)
+    
+    # Run the Monte Carlo simulation
+    results = run_monte_carlo_simulation(
+        simulations=request.simulations, 
+        seed=request.seed, 
+        groups=data["groups"], 
+        elo_lookup=elo_lookup
+    )
+    
+    team_forecasts = []
+    for r in results:
+        team_forecasts.append(TeamForecast(
+            team=r["team"],
+            qualified_from_groups=r["qualified_from_groups"],
+            round_of_16=r["round_of_16"],
+            quarterfinal=r["quarterfinal"],
+            semifinal=r["semifinal"],
+            final=r["final"],
+            champion=r["champion"]
+        ))
+        
+    return ForecastResponse(
+        simulations=request.simulations,
+        results=team_forecasts
     )
