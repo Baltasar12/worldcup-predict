@@ -84,6 +84,26 @@ class WorldCupSimulationResponse(BaseModel):
     groups: List[GroupStandingsResponse]
     bracket: BracketResponse
 
+class WorldCupValidationResponse(BaseModel):
+    year: int
+    champion: str
+    champion_predicted_rank: int
+    top_predicted_teams: List[str]
+
+class AnalyticsPerformanceResponse(BaseModel):
+    accuracy: float
+    log_loss: float
+    brier_score: float
+    evaluated_matches: int
+    world_cups: List[WorldCupValidationResponse]
+
+class CalibrationBinResponse(BaseModel):
+    bin: str
+    count: int
+    predicted_prob: float
+    actual_prob: float
+
+
 class ForecastRequest(BaseModel):
     simulations: int
     seed: Optional[int] = None

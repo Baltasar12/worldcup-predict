@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { Trophy, BarChart3, LineChart, Home, Activity, Settings2, Globe2 } from "lucide-react";
+import { Trophy, BarChart3, LineChart, Home, Activity, Settings2, Globe2, PieChart } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 const navItems = [
@@ -12,6 +12,7 @@ const navItems = [
   { name: "World Cup Tournament", href: "/tournament", icon: Globe2 },
   { name: "Monte Carlo Forecast", href: "/monte-carlo", icon: LineChart },
   { name: "Global Rankings", href: "/rankings", icon: BarChart3 },
+  { name: "Analytics & Calibration", href: "/analytics", icon: PieChart },
 ];
 
 export function Sidebar() {

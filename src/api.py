@@ -17,7 +17,8 @@ from src.schemas import (
     GroupStageMatchResult, TeamStandingResponse,
     BracketResponse, BracketMatchResponse,
     WorldCupSimulationResponse, ForecastRequest, ForecastResponse, TeamForecast,
-    MonteCarloRequest, MonteCarloResponse, MonteCarloTeamResult
+    MonteCarloRequest, MonteCarloResponse, MonteCarloTeamResult,
+    AnalyticsPerformanceResponse
 )
 from src.world_cup.simulator import load_groups, run_group_stage, run_single_simulation, run_monte_carlo_simulation
 from src.world_cup.bracket import generate_bracket
@@ -411,3 +412,14 @@ def run_world_cup_monte_carlo(request: MonteCarloRequest, db: Session = Depends(
         simulations=request.simulations,
         results=team_results
     )
+
+@app.get("/analytics/model-performance", response_model=AnalyticsPerformanceResponse)
+def get_model_performance():
+    """Return the pre-calculated performance summary metrics and historical World Cup validation."""
+    try:
+        import json
+        with open("data/performance_summary.json", "r") as f:
+            data = json.load(f)
+        return AnalyticsPerformanceResponse(**data)
+    except FileNotFoundError:
+        raise HTTPException(status_code=404, detail="Performance summary not found. Run the evaluator first.")

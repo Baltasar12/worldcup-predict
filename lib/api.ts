@@ -76,14 +76,40 @@ export interface MonteCarloResponse {
   results: MonteCarloTeamResult[];
 }
 
-export const runMonteCarlo = async (simulations: number): Promise<MonteCarloResponse> => {
-  const res = await fetch(`${API_BASE_URL}/world-cup/monte-carlo`, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ simulations }),
+export interface WorldCupValidationResponse {
+  year: number;
+  champion: string;
+  champion_predicted_rank: number;
+  top_predicted_teams: string[];
+}
+
+export interface MonteCarloRequest {
+  simulations: number;
+  seed?: number;
+}
+
+export interface AnalyticsPerformanceResponse {
+  accuracy: number;
+  log_loss: number;
+  brier_score: number;
+  evaluated_matches: number;
+  world_cups: WorldCupValidationResponse[];
+}
+
+export const runMonteCarlo = async (data: MonteCarloRequest): Promise<MonteCarloResponse> => {
+  const response = await fetch(`${API_BASE_URL}/world-cup/monte-carlo`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(data)
   });
-  if (!res.ok) throw new Error("Failed to run Monte Carlo simulation");
-  return res.json();
+  if (!response.ok) throw new Error('Failed to run Monte Carlo simulation');
+  return response.json();
+};
+
+export const getAnalyticsPerformance = async (): Promise<AnalyticsPerformanceResponse> => {
+  const response = await fetch(`${API_BASE_URL}/analytics/model-performance`);
+  if (!response.ok) throw new Error('Failed to fetch analytics performance');
+  return response.json();
 };
 
 export interface GroupStageMatchResult {

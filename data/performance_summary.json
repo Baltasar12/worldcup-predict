@@ -1,0 +1,44 @@
+{
+  "accuracy": 0.5778735806667071,
+  "log_loss": 0.9158269311621342,
+  "brier_score": 0.27024018956525697,
+  "evaluated_matches": 49407,
+  "world_cups": [
+    {
+      "year": 2014,
+      "champion": "Germany",
+      "champion_predicted_rank": 3,
+      "top_predicted_teams": [
+        "Spain",
+        "Brazil",
+        "Germany",
+        "Argentina",
+        "Netherlands"
+      ]
+    },
+    {
+      "year": 2018,
+      "champion": "France",
+      "champion_predicted_rank": 5,
+      "top_predicted_teams": [
+        "Brazil",
+        "Spain",
+        "Germany",
+        "Argentina",
+        "France"
+      ]
+    },
+    {
+      "year": 2022,
+      "champion": "Argentina",
+      "champion_predicted_rank": 2,
+      "top_predicted_teams": [
+        "Brazil",
+        "Argentina",
+        "Spain",
+        "France",
+        "Netherlands"
+      ]
+    }
+  ]
+}
