@@ -60,3 +60,86 @@ export const simulateTournament = async (teams: string[]): Promise<SimulationRes
   if (!res.ok) throw new Error("Failed to simulate tournament");
   return res.json();
 };
+
+export interface MonteCarloTeamResult {
+  team: string;
+  "round-of-32": number;
+  "round-of-16": number;
+  quarterfinalist: number;
+  semifinalist: number;
+  finalist: number;
+  champion: number;
+}
+
+export interface MonteCarloResponse {
+  simulations: number;
+  results: MonteCarloTeamResult[];
+}
+
+export const runMonteCarlo = async (simulations: number): Promise<MonteCarloResponse> => {
+  const res = await fetch(`${API_BASE_URL}/world-cup/monte-carlo`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ simulations }),
+  });
+  if (!res.ok) throw new Error("Failed to run Monte Carlo simulation");
+  return res.json();
+};
+
+export interface GroupStageMatchResult {
+  team_a: string;
+  team_b: string;
+  score_a: number;
+  score_b: number;
+}
+
+export interface TeamStandingResponse {
+  team: string;
+  points: number;
+  wins: number;
+  draws: number;
+  losses: number;
+  goals_for: number;
+  goals_against: number;
+  goal_difference: number;
+  elo: number;
+}
+
+export interface GroupStandingsResponse {
+  group: string;
+  standings: TeamStandingResponse[];
+  matches: GroupStageMatchResult[];
+}
+
+export interface BracketMatchResponse {
+  match_id: number;
+  round: string;
+  team_a: string;
+  team_b: string;
+  team_a_origin: string;
+  team_b_origin: string;
+}
+
+export interface BracketResponse {
+  round_of_32: BracketMatchResponse[];
+  round_of_16: BracketMatchResponse[];
+  quarterfinals: BracketMatchResponse[];
+  semifinals: BracketMatchResponse[];
+  final: BracketMatchResponse[];
+  champion: string;
+  qualified_teams: number;
+}
+
+export interface WorldCupSimulationResponse {
+  groups: GroupStandingsResponse[];
+  bracket: BracketResponse;
+}
+
+export const runWorldCupSimulation = async (): Promise<WorldCupSimulationResponse> => {
+  const res = await fetch(`${API_BASE_URL}/world-cup/simulate`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+  });
+  if (!res.ok) throw new Error("Failed to run World Cup simulation");
+  return res.json();
+};

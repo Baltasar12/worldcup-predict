@@ -537,6 +537,26 @@ class TestMonteCarloSimulation:
             assert 0.0 <= r["qualified_from_groups"] <= 100.0
             assert 0.0 <= r["champion"] <= 100.0
 
+    def test_monte_carlo_new_endpoint(self):
+        """POST /world-cup/monte-carlo should match Sprint 3 contract."""
+        payload = {"simulations": 1000}
+        response = client.post("/world-cup/monte-carlo", json=payload)
+        assert response.status_code == 200
+        data = response.json()
+        assert data["simulations"] == 1000
+        res0 = data["results"][0]
+        assert "round-of-32" in res0
+        assert "round-of-16" in res0
+        assert "quarterfinalist" in res0
+        assert "semifinalist" in res0
+        assert "finalist" in res0
+        assert "champion" in res0
+
+    def test_monte_carlo_invalid_simulations(self):
+        """Should reject simulations not in [1000, 5000, 10000]."""
+        response = client.post("/world-cup/monte-carlo", json={"simulations": 500})
+        assert response.status_code == 400
+
 class TestAliasHandling:
     """Test team name normalization across endpoints."""
 

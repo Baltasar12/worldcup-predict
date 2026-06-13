@@ -16,7 +16,8 @@ from src.schemas import (
     WorldCupGroupsResponse, GroupStageResponse, GroupStandingsResponse,
     GroupStageMatchResult, TeamStandingResponse,
     BracketResponse, BracketMatchResponse,
-    WorldCupSimulationResponse, ForecastRequest, ForecastResponse, TeamForecast
+    WorldCupSimulationResponse, ForecastRequest, ForecastResponse, TeamForecast,
+    MonteCarloRequest, MonteCarloResponse, MonteCarloTeamResult
 )
 from src.world_cup.simulator import load_groups, run_group_stage, run_single_simulation, run_monte_carlo_simulation
 from src.world_cup.bracket import generate_bracket
@@ -278,18 +279,26 @@ def _group_result_to_response(gr) -> GroupStandingsResponse:
 
 def _bracket_to_response(bracket) -> BracketResponse:
     """Convert a Bracket dataclass to a Pydantic response."""
-    return BracketResponse(
-        round_of_32=[
+    def map_matches(matches, round_name):
+        return [
             BracketMatchResponse(
                 match_id=bm.match_id,
-                round=bm.round_name,
+                round=round_name,
                 team_a=bm.team_a,
                 team_b=bm.team_b,
                 team_a_origin=bm.team_a_origin,
                 team_b_origin=bm.team_b_origin,
             )
-            for bm in bracket.round_of_32
-        ],
+            for bm in matches
+        ]
+
+    return BracketResponse(
+        round_of_32=map_matches(bracket.round_of_32, "Round of 32"),
+        round_of_16=map_matches(bracket.round_of_16, "Round of 16"),
+        quarterfinals=map_matches(bracket.quarterfinals, "Quarterfinal"),
+        semifinals=map_matches(bracket.semifinals, "Semifinal"),
+        final=map_matches(bracket.final, "Final"),
+        champion=bracket.champion,
         qualified_teams=bracket.qualified_teams,
     )
 
@@ -368,4 +377,37 @@ def run_world_cup_forecast(request: ForecastRequest, db: Session = Depends(get_d
     return ForecastResponse(
         simulations=request.simulations,
         results=team_forecasts
+    )
+
+@app.post("/world-cup/monte-carlo", response_model=MonteCarloResponse)
+def run_world_cup_monte_carlo(request: MonteCarloRequest, db: Session = Depends(get_db)):
+    """Run Monte Carlo simulation matching Sprint 3 contract."""
+    if request.simulations not in [1000, 5000, 10000]:
+        raise HTTPException(status_code=400, detail="Simulations must be 1000, 5000, or 10000")
+        
+    data = load_groups()
+    elo_lookup = _build_elo_lookup(db)
+    
+    results = run_monte_carlo_simulation(
+        simulations=request.simulations, 
+        seed=request.seed, 
+        groups=data["groups"], 
+        elo_lookup=elo_lookup
+    )
+    
+    team_results = []
+    for r in results:
+        team_results.append(MonteCarloTeamResult(
+            team=r["team"],
+            round_of_32=r["qualified_from_groups"],
+            round_of_16=r["round_of_16"],
+            quarterfinalist=r["quarterfinal"],
+            semifinalist=r["semifinal"],
+            finalist=r["final"],
+            champion=r["champion"]
+        ))
+        
+    return MonteCarloResponse(
+        simulations=request.simulations,
+        results=team_results
     )

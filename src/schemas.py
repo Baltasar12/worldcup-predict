@@ -1,4 +1,4 @@
-from pydantic import BaseModel
+from pydantic import BaseModel, Field, ConfigDict
 from typing import List, Dict, Optional
 
 class RankingResponse(BaseModel):
@@ -73,6 +73,11 @@ class BracketMatchResponse(BaseModel):
 
 class BracketResponse(BaseModel):
     round_of_32: List[BracketMatchResponse]
+    round_of_16: List[BracketMatchResponse] = []
+    quarterfinals: List[BracketMatchResponse] = []
+    semifinals: List[BracketMatchResponse] = []
+    final: List[BracketMatchResponse] = []
+    champion: str = ""
     qualified_teams: int
 
 class WorldCupSimulationResponse(BaseModel):
@@ -95,3 +100,22 @@ class TeamForecast(BaseModel):
 class ForecastResponse(BaseModel):
     simulations: int
     results: List[TeamForecast]
+
+class MonteCarloRequest(BaseModel):
+    simulations: int
+    seed: Optional[int] = None
+
+class MonteCarloTeamResult(BaseModel):
+    team: str
+    round_of_32: float = Field(alias="round-of-32")
+    round_of_16: float = Field(alias="round-of-16")
+    quarterfinalist: float
+    semifinalist: float
+    finalist: float
+    champion: float
+
+    model_config = ConfigDict(populate_by_name=True)
+
+class MonteCarloResponse(BaseModel):
+    simulations: int
+    results: List[MonteCarloTeamResult]

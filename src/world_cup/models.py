@@ -52,6 +52,11 @@ class BracketMatch:
 
 @dataclass
 class Bracket:
-    """The complete knockout bracket (Round of 32)."""
+    """The complete knockout bracket."""
     round_of_32: list[BracketMatch] = field(default_factory=list)
+    round_of_16: list[BracketMatch] = field(default_factory=list)
+    quarterfinals: list[BracketMatch] = field(default_factory=list)
+    semifinals: list[BracketMatch] = field(default_factory=list)
+    final: list[BracketMatch] = field(default_factory=list)
+    champion: str = ""
     qualified_teams: int = 0

@@ -10,7 +10,7 @@ import os
 import random
 from collections import defaultdict
 
-from src.world_cup.models import GroupResult, Bracket
+from src.world_cup.models import GroupResult, Bracket, BracketMatch
 from src.world_cup.groups import simulate_group
 from src.world_cup.bracket import generate_bracket
 from src.prediction import get_match_probabilities
@@ -22,13 +22,8 @@ DATA_PATH = os.path.join(
 
 
 def load_groups() -> dict:
-    """
-    Load World Cup group configuration from the JSON dataset.
-
-    Returns:
-        Dict with keys 'tournament' and 'groups'.
-    """
-    with open(DATA_PATH, "r", encoding="utf-8") as f:
+    """Load World Cup 2026 groups configuration."""
+    with open("data/world_cup_2026_groups.json", "r", encoding="utf-8") as f:
         return json.load(f)
 
 
@@ -63,17 +58,40 @@ def run_single_simulation(
     elo_lookup: dict[str, float],
 ) -> dict:
     """
-    Run a complete single simulation: group stage + bracket generation.
-
-    Parameters:
-        groups: Dict mapping group name to list of team names.
-        elo_lookup: Dict mapping team name to current Elo rating.
-
-    Returns:
-        Dict with 'group_results' and 'bracket'.
+    Run a complete single simulation: group stage + bracket generation + bracket resolution.
     """
     group_results = run_group_stage(groups, elo_lookup)
     bracket = generate_bracket(group_results)
+
+    def play_matches(matches, next_round_name):
+        next_matches = []
+        for i in range(0, len(matches), 2):
+            if i + 1 >= len(matches):
+                break
+            m1 = matches[i]
+            m2 = matches[i+1]
+            w1 = simulate_knockout_match(m1.team_a, m1.team_b, elo_lookup)
+            w2 = simulate_knockout_match(m2.team_a, m2.team_b, elo_lookup)
+            
+            next_matches.append(BracketMatch(
+                match_id=m1.match_id * 100 + m2.match_id,
+                round_name=next_round_name,
+                team_a=w1,
+                team_b=w2,
+                team_a_origin=f"Winner Match {m1.match_id}",
+                team_b_origin=f"Winner Match {m2.match_id}",
+            ))
+        return next_matches
+
+    bracket.round_of_16 = play_matches(bracket.round_of_32, "Round of 16")
+    bracket.quarterfinals = play_matches(bracket.round_of_16, "Quarterfinal")
+    bracket.semifinals = play_matches(bracket.quarterfinals, "Semifinal")
+    bracket.final = play_matches(bracket.semifinals, "Final")
+    
+    # The final has 1 match, we simulate it to find the champion
+    if bracket.final:
+        final_match = bracket.final[0]
+        bracket.champion = simulate_knockout_match(final_match.team_a, final_match.team_b, elo_lookup)
 
     return {
         "group_results": group_results,

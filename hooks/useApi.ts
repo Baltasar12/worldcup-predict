@@ -1,5 +1,5 @@
 import { useQuery, useMutation } from "@tanstack/react-query";
-import { fetchRankings, fetchTeam, predictMatch, simulateTournament } from "@/lib/api";
+import { fetchRankings, fetchTeam, predictMatch, simulateTournament, runMonteCarlo, runWorldCupSimulation } from "@/lib/api";
 
 export const useRankings = (limit: number = 50) => {
   return useQuery({
@@ -27,5 +27,17 @@ export const usePredict = (teamA: string, teamB: string) => {
 export const useSimulation = () => {
   return useMutation({
     mutationFn: (teams: string[]) => simulateTournament(teams),
+  });
+};
+
+export const useMonteCarlo = () => {
+  return useMutation({
+    mutationFn: (simulations: number) => runMonteCarlo(simulations),
+  });
+};
+
+export const useWorldCupSimulation = () => {
+  return useMutation({
+    mutationFn: () => runWorldCupSimulation(),
   });
 };
